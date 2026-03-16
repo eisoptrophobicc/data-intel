@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from datetime import datetime
 from query_parser import parse_question
 from sql_validator import validate_intent
 from sql_generator import generate_sql
@@ -8,6 +9,41 @@ from template_engine import find_template, store_template
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 CACHE_FILE = BASE_DIR / "backend" / "question_cache.json"
+BAD_CACHE = BASE_DIR / "backend" / "bad_cache.json"
+
+
+# ------------------------------
+# BAD QUESTION CACHE
+# ------------------------------
+
+def load_bad_cache():
+
+    if not BAD_CACHE.exists():
+        with open(BAD_CACHE, "w") as f:
+            json.dump({}, f)
+        return {}
+
+    with open(BAD_CACHE, "r") as f:
+        return json.load(f)
+
+
+def store_bad_question(question, reason, intent=None):
+
+    cache = load_bad_cache()
+
+    cache[question] = {
+        "intent": intent,
+        "reason": reason,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+    with open(BAD_CACHE, "w") as f:
+        json.dump(cache, f, indent=2)
+
+
+# ------------------------------
+# QUESTION CACHE
+# ------------------------------
 
 def load_question_cache():
 
@@ -18,7 +54,8 @@ def load_question_cache():
 
     with open(CACHE_FILE, "r") as f:
         return json.load(f)
-    
+
+
 def store_question_cache(question, sql):
 
     cache = load_question_cache()
@@ -28,51 +65,144 @@ def store_question_cache(question, sql):
     with open(CACHE_FILE, "w") as f:
         json.dump(cache, f, indent=2)
 
+
+# ------------------------------
+# MAIN QUERY PIPELINE
+# ------------------------------
+
 def run_query(question):
 
     question = question.lower().strip()
 
+    # ------------------------------
+    # BAD QUESTION CACHE
+    # ------------------------------
+
+    bad_cache = load_bad_cache()
+
+    if question in bad_cache:
+
+        print("SOURCE: BAD CACHE")
+
+        return {
+            "status": "error",
+            "type": "bad_question",
+            "reason": bad_cache[question]
+        }
+
+    # ------------------------------
+    # QUESTION CACHE
+    # ------------------------------
+
     cache = load_question_cache()
 
-    # check question cache
     if question in cache:
+
         print("SOURCE: QUESTION CACHE")
-        return execute_query(cache[question])
 
-    # LLM → intent
-    intent = parse_question(question)
-    
-    for k, v in intent["filters"].items():
-        if isinstance(v, list):
-            if len(v) == 1:
-                intent["filters"][k] = v[0]
+        try:
 
-    validate_intent(intent)
+            df = execute_query(cache[question])
 
-    # template match
-    sql = find_template(intent)
+            if df.empty:
+                return {"status": "no_data"}
 
-    if sql:
-        print("SOURCE: TEMPLATE")
-    else:
-        print("SOURCE: LLM")
+            return {
+                "status": "success",
+                "data": df.to_dict(orient="records"),
+                "sql": cache[question]
+            }
 
-        sql = generate_sql(intent)
+        except Exception as e:
 
-        store_template(intent, sql)
+            return {
+                "status": "error",
+                "type": "execution_error",
+                "message": str(e)
+            }
 
-    print("SQL GENERATED:", sql)
-    
+    # ------------------------------
+    # MAIN PIPELINE
+    # ------------------------------
+
     try:
-        # execute query FIRST
-        result = execute_query(sql)
 
-        # only cache if execution succeeded
-        if result is not None and not result.empty:
-            store_question_cache(question, sql)
+        # ------------------
+        # LLM → INTENT
+        # ------------------
 
-        return result
-    
+        intent = parse_question(question)
+
+        if not intent or not intent.get("metrics"):
+            raise ValueError("Query cannot be answered with available data")
+        
+        print("INTENT:", intent)
+
+        validate_intent(intent)
+        
+        print("INTENT VALIDATED")
+        # ------------------
+        # TEMPLATE ENGINE
+        # ------------------
+
+        sql = find_template(intent)
+
+
+        print("SQL:", sql)
+
+        if sql:
+
+            print("SOURCE: TEMPLATE CACHE")
+
+        else:
+
+            print("SOURCE: LLM SQL GENERATOR")
+
+            sql = generate_sql(intent)
+
+            store_template(intent, sql)
+
+        print("SQL GENERATED:", sql)
+
+        # ------------------
+        # EXECUTE SQL
+        # ------------------
+
+        df = execute_query(sql)
+
+        print("QUERY EXECUTED")
+
+        if df.empty:
+            return {"status": "no_data"}
+
+        # ------------------
+        # STORE SUCCESS CACHE
+        # ------------------
+
+        store_question_cache(question, sql)
+
+        return {
+            "status": "success",
+            "data": df.to_dict(orient="records"),
+            "sql": sql
+        }
+
+    except ValueError as e:
+
+        store_bad_question(question, str(e), intent)
+
+        return {
+            "status": "error",
+            "type": "validation_error",
+            "message": str(e)
+        }
+
     except Exception as e:
-        print("SQL ERROR:", e)
-        return None
+
+        print("SYSTEM ERROR:", e)
+
+        return {
+            "status": "error",
+            "type": "system_error",
+            "message": str(e)
+        }

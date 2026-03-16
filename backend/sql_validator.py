@@ -1,59 +1,82 @@
 from query_parser import load_schema
 
+
 def validate_intent(intent):
+
+    if not isinstance(intent, dict):
+        raise ValueError("Intent must be a dictionary")
 
     schema = load_schema()
 
-    metrics = intent["metrics"]
-    aggregation = intent["aggregation"]
-    group_by = intent["group_by"]
-    filters = intent["filters"]
-    order_by = intent["order_by"]
-    order = intent["order"]
-    limit = intent["limit"]
+    columns = schema["columns"]
+
+    metrics = intent.get("metrics", [])
+    aggregation = intent.get("aggregation")
+    group_by = intent.get("group_by", [])
+    filters = intent.get("filters", [])
+    order_by = intent.get("order_by")
+    order = intent.get("order")
+    limit = intent.get("limit")
 
     valid_aggs = ["AVG", "SUM", "COUNT", "MAX", "MIN"]
     valid_orders = ["ASC", "DESC"]
 
+    # extract schema roles
+    metric_columns = [
+        c for c, m in columns.items() if m["role"] == "metric"
+    ]
+
+    dimension_columns = [
+        c for c, m in columns.items() if m["role"] == "dimension"
+    ]
+
+    datetime_columns = [
+        c for c, m in columns.items() if m["role"] == "datetime"
+    ]
+
+    valid_columns = metric_columns + dimension_columns + datetime_columns
+
     # metric validation
     for metric in metrics:
-        if metric not in schema["metrics"]:
+        if metric not in metric_columns:
             raise ValueError(f"Invalid metric: {metric}")
 
     # aggregation validation
-    if aggregation not in valid_aggs:
+    if aggregation and aggregation not in valid_aggs:
         raise ValueError(f"Invalid aggregation: {aggregation}")
 
     # group_by validation
-    if isinstance(group_by, list):
-        for g in group_by:
-            if g not in schema["dimensions"]:
-                raise ValueError(f"Invalid group_by: {group_by}")
-    elif group_by:
-        if group_by not in schema["dimensions"]:
-            raise ValueError(f"Invalid group_by: {group_by}")
+    for g in group_by:
+        if g not in dimension_columns:
+            raise ValueError(f"Invalid group_by column: {g}")
 
-    # filters validation
-    for col in filters.keys():
-        if col not in schema["dimensions"]:
+    # filter validation
+    for f in filters:
+
+        col = f.get("column")
+        op = f.get("op")
+
+        if col not in valid_columns:
             raise ValueError(f"Invalid filter column: {col}")
 
-    # order_by validation
-    valid_order_columns = schema["metrics"] + schema["dimensions"]
+        if op not in ["=", "IN", ">", "<", ">=", "<=", "BETWEEN", "LIKE"]:
+            raise ValueError(f"Invalid filter operator: {op}")
 
-    if order_by and order_by not in valid_order_columns:
-        raise ValueError(f"Invalid order_by: {order_by}")
+    # order_by validation
+    if order_by and order_by not in valid_columns:
+        raise ValueError(f"Invalid order_by column: {order_by}")
 
     # order validation
     if order and order not in valid_orders:
-        raise ValueError(f"Invalid order: {order}")
+        raise ValueError(f"Invalid order direction: {order}")
 
     # limit validation
-    if intent["limit"] and not intent["order_by"]:
-        raise ValueError("LIMIT requires ORDER BY")
-
     if limit is not None:
+
         if not isinstance(limit, int) or limit <= 0:
-            raise ValueError("Limit must be a positive integer")
+            raise ValueError("Limit must be positive integer")
+
+        if not order_by:
+            raise ValueError("LIMIT requires ORDER BY")
 
     return True

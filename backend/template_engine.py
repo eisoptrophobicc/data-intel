@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
 from query_parser import load_schema
+import re
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 TEMPLATE_FILE = BASE_DIR / "backend" / "template_memory.json"
+
 
 # LOAD TEMPLATE MEMORY
 def load_templates():
@@ -16,14 +18,37 @@ def load_templates():
     with open(TEMPLATE_FILE, "r") as f:
         return json.load(f)
 
+
+# NORMALIZE INTENT (improves template matching)
+def normalize_intent(intent):
+
+    normalized = intent.copy()
+
+    normalized["group_by"] = sorted(intent.get("group_by", []))
+
+    normalized["filters"] = sorted(
+        intent.get("filters", []),
+        key=lambda f: f.get("column")
+    )
+
+    return normalized
+
+
 # VALIDATE FILTER VALUES
 def validate_filter_values(filters):
 
     schema = load_schema()
 
-    categorical_examples = schema.get("categorical_examples", {})
+    categorical_examples = {}
 
-    for column, value in filters.items():
+    for col, meta in schema["columns"].items():
+        if "examples" in meta:
+            categorical_examples[col] = meta["examples"]
+
+    for f in filters:
+
+        column = f.get("column")
+        value = f.get("value")
 
         if column not in categorical_examples:
             continue
@@ -36,74 +61,75 @@ def validate_filter_values(filters):
 
     return True
 
+
 # BUILD TEMPLATE PATTERN
 def build_pattern(intent):
 
     pattern = {
-        "aggregation": intent["aggregation"],
+        "aggregation": intent.get("aggregation"),
         "metric": "{metric}",
-        "filters": {}
+        "filters": {},
+        "group_by": "{dimension}" if intent.get("group_by") else None
     }
 
-    # group_by
-    if intent["group_by"]:
-        pattern["group_by"] = "{dimension}"
-    else:
-        pattern["group_by"] = None
+    for f in intent.get("filters", []):
+        col = f["column"]
+        pattern["filters"][col] = "{" + col + "}"
 
-    # filters
-    for k in intent["filters"]:
-        pattern["filters"][k] = "{" + k + "}"
-
-    # ranking fields
-    if intent["order_by"]:
+    if intent.get("order_by"):
         pattern["order_by"] = "{metric}"
-        pattern["order"] = intent["order"]
+        pattern["order"] = intent.get("order")
 
-    if intent["limit"]:
+    if intent.get("limit"):
         pattern["limit"] = intent["limit"]
 
     return pattern
 
+
 # MATCH TEMPLATE PATTERN
 def match_pattern(intent, pattern):
-    if intent["aggregation"] != pattern["aggregation"]:
+
+    if intent.get("aggregation") != pattern.get("aggregation"):
         return False
 
-    # group_by match
     if pattern["group_by"] == "{dimension}":
-        if intent["group_by"] is None:
+        if not intent.get("group_by"):
             return False
     else:
-        if intent["group_by"] != pattern["group_by"]:
+        if intent.get("group_by") != pattern.get("group_by"):
             return False
 
-    # filters must match structure
-    if set(intent["filters"].keys()) != set(pattern["filters"].keys()):
+    intent_filter_cols = {f["column"] for f in intent.get("filters", [])}
+    pattern_filter_cols = set(pattern["filters"].keys())
+
+    if intent_filter_cols != pattern_filter_cols:
         return False
 
-    # limit check
     if "limit" in pattern:
-        if intent["limit"] != pattern["limit"]:
+        if intent.get("limit") != pattern["limit"]:
             return False
 
-    # order check
     if "order" in pattern:
-        if intent["order"] != pattern["order"]:
+        if intent.get("order") != pattern["order"]:
             return False
 
-    # order_by check
     if "order_by" in pattern:
-        if intent["order_by"] is None:
+        if not intent.get("order_by"):
             return False
 
     return True
 
+
 # FIND TEMPLATE
 def find_template(intent):
 
-    # normalize filters FIRST
-    if not validate_filter_values(intent["filters"]):
+    # BYPASS multi-metric queries
+    if len(intent.get("metrics", [])) > 1:
+        return None
+
+    normalized_intent = normalize_intent(intent)
+
+    if not validate_filter_values(normalized_intent.get("filters", [])):
         print("TEMPLATE BYPASSED: invalid filter value")
         return None
 
@@ -111,50 +137,50 @@ def find_template(intent):
 
     for t in templates:
 
-        if match_pattern(intent, t["intent_pattern"]):
+        if match_pattern(normalized_intent, t["intent_pattern"]):
 
             print("SOURCE: TEMPLATE CACHE")
 
-            return generate_sql_from_pattern(t, intent)
+            return generate_sql_from_pattern(t, normalized_intent)
 
     return None
+
 
 # GENERATE SQL FROM TEMPLATE
 def generate_sql_from_pattern(template, intent):
 
     metrics = intent.get("metrics", [])
+    agg = intent.get("aggregation")
 
-    # fallback for old format
-    if not metrics and "metric" in intent:
-        metrics = [intent["metric"]]
-
-    agg = intent["aggregation"]
-
-    # build aggregated metric list
     metric_sql = ", ".join([f"{agg}({m})" for m in metrics])
 
     variables = {}
 
-    # dimension
-    if intent["group_by"]:
-        variables["dimension"] = intent["group_by"]
+    if intent.get("group_by"):
+        variables["dimension"] = intent["group_by"][0]
 
-    # filters
-    for k, v in intent["filters"].items():
-        variables[k] = v
+    for f in intent.get("filters", []):
+        variables[f["column"]] = f["value"]
 
     sql = template["sql_template"]
 
-    # expand aggregated metrics
+    # replace aggregated metric placeholder
     sql = sql.replace(f"{agg}({{metric}})", metric_sql)
 
-    # replace other placeholders
+    # replace metric placeholder
+    if metrics:
+        sql = sql.replace("{metric}", metrics[0])
+
+    # replace dimension placeholder
+    if "dimension" in variables:
+        sql = sql.replace("{dimension}", variables["dimension"])
+
+    # replace filter placeholders
     for key, value in variables.items():
         sql = sql.replace("{" + key + "}", str(value))
 
     # ORDER BY
-    if intent.get("order") and intent.get("order_by"):
-
+    if intent.get("order") and intent.get("order_by") and "ORDER BY" not in sql.upper():
         metric_for_order = metrics[0]
         sql += f" ORDER BY {agg}({metric_for_order}) {intent['order']}"
 
@@ -162,17 +188,21 @@ def generate_sql_from_pattern(template, intent):
     if intent.get("limit"):
         sql += f" LIMIT {intent['limit']}"
 
-    # safety check
-    if "{" in sql or "}" in sql:
+    # detect unresolved placeholders safely
+    if re.search(r"\{.+?\}", sql):
+        print("BROKEN TEMPLATE:", sql)
         raise ValueError("Unresolved template variables")
 
     return sql
 
+
 # STORE TEMPLATE
 def store_template(intent, sql):
 
-    # DO NOT STORE BAD FILTERS
-    if not validate_filter_values(intent["filters"]):
+    if len(intent.get("metrics", [])) > 1:
+        return
+
+    if not validate_filter_values(intent.get("filters", [])):
         print("TEMPLATE NOT STORED: invalid filter value")
         return
 
@@ -182,38 +212,32 @@ def store_template(intent, sql):
 
     sql_template = sql
 
-    # replace filter values
-    for key in intent["filters"]:
-        value = intent["filters"][key]
+    for f in intent.get("filters", []):
+        key = f["column"]
+        value = str(f["value"])
         sql_template = sql_template.replace(value, "{" + key + "}")
 
-    # replace metric
     metrics = intent.get("metrics", [])
+    agg = intent.get("aggregation")
 
-    if not metrics and "metric" in intent:
-        metrics = [intent["metric"]]
-
-    # replace aggregated metrics with a single placeholder
     for m in metrics:
-        sql_template = sql_template.replace(f"{intent['aggregation']}({m})", f"{intent['aggregation']}({{metric}})")
+        sql_template = sql_template.replace(
+            f"{agg}({m})",
+            f"{agg}({{metric}})"
+        )
 
-    # collapse duplicates if multi-metric query generated them
-    upper_sql = sql_template.upper()
-    parts = upper_sql.split("SELECT")[1].split("FROM")[0]
+    if intent.get("group_by"):
+        sql_template = sql_template.replace(
+            intent["group_by"][0],
+            "{dimension}"
+        )
 
-    if parts.count("{metric}") > 1:
-        sql_template = f"SELECT {{dimension}}, {intent['aggregation']}({{metric}}) FROM youtube_videos_staging GROUP BY {{dimension}}"
+    if intent.get("order_by") and metrics:
+        sql_template = sql_template.replace(
+            metrics[0],
+            "{metric}"
+        )
 
-    # replace dimension
-    if intent["group_by"]:
-        sql_template = sql_template.replace(intent["group_by"], "{dimension}")
-
-    # replace metric in order_by
-    if intent["order_by"] and metrics:
-        metric = metrics[0]
-        sql_template = sql_template.replace(metric, "{metric}")
-
-    # avoid duplicate patterns
     for t in templates:
         if t["intent_pattern"] == pattern:
             return

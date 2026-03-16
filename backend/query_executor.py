@@ -2,18 +2,27 @@ import sqlite3
 import pandas as pd
 from pathlib import Path
 
-def execute_query(sql):
+BASE_DIR = Path(__file__).resolve().parents[1]
+DB_FILE = BASE_DIR / "backend" / "youtube_content.db"
 
-    # locate database
-    BASE_DIR = Path(__file__).resolve().parents[1]
-    DB_FILE = BASE_DIR / "backend" /"youtube_content.db"
-    
-    # connect to database
-    conn = sqlite3.connect(DB_FILE)
+def execute_query(sql: str) -> pd.DataFrame:
+    """
+    Executes SQL query against SQLite database
+    and returns results as a Pandas DataFrame.
+    """
 
-    # execute SQL and load into dataframe
-    df = pd.read_sql_query(sql, conn)
+    conn = None
 
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_FILE)
 
-    return df
+        df = pd.read_sql_query(sql, conn)
+
+        return df
+
+    except Exception as e:
+        raise RuntimeError(f"Query execution failed: {e}")
+
+    finally:
+        if conn:
+            conn.close()
