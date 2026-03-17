@@ -6,6 +6,7 @@ from sql_validator import validate_intent
 from sql_generator import generate_sql
 from query_executor import execute_query
 from template_engine import find_template, store_template
+from chart_selector import detect_chart
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 CACHE_FILE = BASE_DIR / "backend" / "question_cache.json"
@@ -169,11 +170,16 @@ def run_query(question):
 
         # STORE SUCCESS CACHE
         store_question_cache(question, sql, intent)
+        
+        data = df.to_dict(orient="records")
+
+        chart = detect_chart(data)
 
         return {
             "status": "success",
-            "data": df.to_dict(orient="records"),
-            "sql": sql
+            "data": data,
+            "sql": sql,
+            "chart": chart
         }
 
     except ValueError as e:
