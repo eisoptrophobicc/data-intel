@@ -136,6 +136,7 @@ def run_query(question, mode = "new"):
 
                 return {
                     "status": "success",
+                    "intent": intent,
                     "data": data,
                     "sql": sql,
                     "chart": chart,
@@ -227,6 +228,7 @@ def run_query(question, mode = "new"):
 
         return {
             "status": "success",
+            "intent": intent,
             "data": data,
             "sql": sql,
             "chart": chart,
