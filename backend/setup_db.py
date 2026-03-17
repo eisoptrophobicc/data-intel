@@ -6,8 +6,8 @@ import io
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-CSV_FILE = BASE_DIR / "data" / "YouTube Content Creation.csv"
-DB_FILE = BASE_DIR / "data" /"youtube_content.db"
+CSV_FILE = BASE_DIR / "backend" / "YouTube Content Creation.csv"
+DB_FILE = BASE_DIR / "backend" /"youtube_content.db"
 TABLE_NAME = "youtube_videos"
 
 DEBUG = False

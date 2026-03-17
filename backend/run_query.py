@@ -12,10 +12,7 @@ CACHE_FILE = BASE_DIR / "backend" / "question_cache.json"
 BAD_CACHE = BASE_DIR / "backend" / "bad_cache.json"
 
 
-# ------------------------------
 # BAD QUESTION CACHE
-# ------------------------------
-
 def load_bad_cache():
 
     if not BAD_CACHE.exists():
@@ -41,10 +38,7 @@ def store_bad_question(question, reason, intent=None):
         json.dump(cache, f, indent=2)
 
 
-# ------------------------------
 # QUESTION CACHE
-# ------------------------------
-
 def load_question_cache():
 
     if not CACHE_FILE.exists():
@@ -66,18 +60,12 @@ def store_question_cache(question, sql):
         json.dump(cache, f, indent=2)
 
 
-# ------------------------------
 # MAIN QUERY PIPELINE
-# ------------------------------
-
 def run_query(question):
 
     question = question.lower().strip()
 
-    # ------------------------------
     # BAD QUESTION CACHE
-    # ------------------------------
-
     bad_cache = load_bad_cache()
 
     if question in bad_cache:
@@ -90,10 +78,8 @@ def run_query(question):
             "reason": bad_cache[question]
         }
 
-    # ------------------------------
-    # QUESTION CACHE
-    # ------------------------------
 
+    # QUESTION CACHE
     cache = load_question_cache()
 
     if question in cache:
@@ -121,16 +107,10 @@ def run_query(question):
                 "message": str(e)
             }
 
-    # ------------------------------
     # MAIN PIPELINE
-    # ------------------------------
-
     try:
 
-        # ------------------
         # LLM → INTENT
-        # ------------------
-
         intent = parse_question(question)
 
         if not intent:
@@ -147,10 +127,8 @@ def run_query(question):
         validate_intent(intent)
         
         print("INTENT VALIDATED")
-        # ------------------
-        # TEMPLATE ENGINE
-        # ------------------
 
+        # TEMPLATE ENGINE
         sql = find_template(intent)
 
 
@@ -170,10 +148,8 @@ def run_query(question):
 
         print("SQL GENERATED:", sql)
 
-        # ------------------
+       
         # EXECUTE SQL
-        # ------------------
-
         df = execute_query(sql)
 
         print("QUERY EXECUTED")
@@ -181,10 +157,8 @@ def run_query(question):
         if df.empty:
             return {"status": "no_data"}
 
-        # ------------------
-        # STORE SUCCESS CACHE
-        # ------------------
 
+        # STORE SUCCESS CACHE
         store_question_cache(question, sql)
 
         return {
