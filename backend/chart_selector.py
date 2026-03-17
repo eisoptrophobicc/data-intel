@@ -26,8 +26,8 @@ def detect_chart(data):
     if "timestamp" in row or "date" in row:
         return {
             "type": "line",
-            "x": "timestamp",
-            "y": numeric[0]
+            "x": "timestamp" if "timestamp" in row else "date",
+            "y": numeric[0] if numeric else None
         }
 
     # Pie chart (percentage column)
@@ -35,9 +35,17 @@ def detect_chart(data):
         if "percent" in col or "%" in col:
             return {
                 "type": "pie",
-                "labels": categorical[0],
+                "labels": categorical[0] if categorical else None,
                 "values": col
             }
+
+    # Radar (multiple metrics)
+    if len(categorical) >= 1 and len(numeric) >= 3:
+        return {
+            "type": "radar",
+            "category": categorical[0],
+            "metrics": numeric
+        }
 
     # Grouped bar
     if len(categorical) == 1 and len(numeric) > 1:
@@ -61,13 +69,6 @@ def detect_chart(data):
             "type": "scatter",
             "x": numeric[0],
             "y": numeric[1]
-        }
-
-    # Radar
-    if len(categorical) >= 1 and len(numeric) >= 3:
-        return {
-            "type": "radar",
-            "metrics": numeric
         }
 
     return {"type": "table"}
