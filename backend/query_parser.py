@@ -238,14 +238,14 @@ id columns
 DERIVED METRIC LOGIC
 
 Some user concepts represent combinations of multiple metrics.
-
+In such case use the metric with the highest relevance to the quetion.
 You may derive metrics ONLY if all required metric columns exist.
 
 Examples:
 
-engagement → likes + comments + shares  
-interaction → likes + comments  
-total reactions → likes + comments + shares
+engagement → likes + comments + views → views 
+interaction → likes + comments → comments
+total reactions → likes + comments + shares + likes
 
 Rules:
 

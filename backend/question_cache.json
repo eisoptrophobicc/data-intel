@@ -173,5 +173,26 @@
       "limit": null,
       "calculation": null
     }
+  },
+  "top languages with most engagement rate": {
+    "sql": "SELECT language, AVG(views) * 1.0 / NULLIF(COUNT(*),0) AS ratio FROM youtube_videos_staging GROUP BY language",
+    "intent": {
+      "metrics": [
+        "views"
+      ],
+      "aggregation": "AVG",
+      "group_by": [
+        "language"
+      ],
+      "filters": [],
+      "order_by": "views",
+      "order": "DESC",
+      "limit": null,
+      "calculation": {
+        "type": "RATIO",
+        "numerator": "views",
+        "denominator": "COUNT"
+      }
+    }
   }
 }
