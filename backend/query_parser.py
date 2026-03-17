@@ -178,10 +178,9 @@ def validate_plan(plan, metrics, dimensions, datetimes):
             else:
                 plan["metrics"] = [numerator]
 
-    if len(plan["metrics"]) > 1:
-
-        if not plan["calculation"] or plan["calculation"]["type"] != "RATIO":
-            plan["metrics"] = plan["metrics"][:1]
+    # allow multiple metrics unless calculation logic requires otherwise
+    if plan["calculation"] and plan["calculation"]["type"] == "RATIO":
+        plan["metrics"] = [plan["calculation"]["numerator"]]
 
     return plan
 
@@ -238,7 +237,7 @@ id columns
 DERIVED METRIC LOGIC
 
 Some user concepts represent combinations of multiple metrics.
-In such case use the metric with the highest relevance to the quetion.
+In such case use the metric with the highest relevance to the quetion. If multiple metrics are explicitly mentioned, include all of them.
 You may derive metrics ONLY if all required metric columns exist.
 
 Examples:

@@ -4,16 +4,18 @@
 export async function POST(req) {
   const body = await req.json();
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
+  const res = await fetch("http://127.0.0.1:8000/query", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      question: body.question,
+      mode: body.mode
+    }),
   });
 
   const data = await res.json();
-  return Response.json(data, { status: res.status });
+
+  return Response.json(data);
 }

@@ -76,27 +76,25 @@ On unclear query: {"error":"reason"}. ONLY JSON.`;
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 async function callAPI(messages){
-  // Uses /api/claude proxy in Next.js so the API key stays server-side
-  // In the artifact environment it calls Anthropic directly (no key needed there)
-  const isDev=typeof window!=="undefined"&&window.location.hostname==="localhost";
-  const url=isDev?"/api/claude":"https://api.anthropic.com/v1/messages";
-  const r=await fetch(url,{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2500,system:SYS,messages}),
+
+  const latest = messages[messages.length - 1].content;
+
+  const r = await fetch("/api/claude", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      question: latest,
+      mode: "new"
+    })
   });
-  if(!r.ok)throw new Error(`API ${r.status}`);
-  const d=await r.json();
-  return(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"")
-    .replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
-}
-function parseCSV(text){
-  const lines=text.trim().split("\n");
-  const headers=lines[0].split(",").map(h=>h.trim().replace(/"/g,""));
-  const rows=lines.slice(1,4).map(l=>{
-    const v=l.split(",").map(x=>x.trim().replace(/"/g,""));
-    return Object.fromEntries(headers.map((h,i)=>[h,v[i]]));
-  });
-  return`columns=[${headers.join(", ")}] sample=${JSON.stringify(rows)}`;
+
+  if(!r.ok) throw new Error(`API ${r.status}`);
+
+  const data = await r.json();
+
+  return data;
 }
 
 // ─── DATE RANGES ─────────────────────────────────────────────────────────────
@@ -3240,12 +3238,11 @@ export default function DIDashboard(){
     try{
       const content=text+(dateRange!=="all"?` [Filter: date range = ${dateRange}]`:"");
       const msgs=[...baseHistory,{role:"user",content}];
-      const raw=await callAPI(msgs);
-      const data=JSON.parse(raw);
+      const data=await callAPI(msgs);
       if(data.error){setError(data.error);}
       else{
         setResult(data);
-        const newH=[...msgs,{role:"assistant",content:raw}];
+        const newH=[...msgs,{role:"assistant",content:JSON.stringify(data)}];
         setHistory(newH);
         setQHistory(prev=>[{q:text,mode:chatMode},...prev].slice(0,15));
         if(chatMode==="new")setChatMode("continue");

@@ -9,41 +9,60 @@ def detect_chart(data):
     categorical = []
 
     for col, val in row.items():
-
         if isinstance(val, (int, float)):
             numeric.append(col)
         else:
             categorical.append(col)
 
-    # KPI
-    if len(data) == 1 and len(numeric) == 1:
+    # KPI (single metric)
+    if len(data) == 1 and len(numeric) >= 1:
         return {
             "type": "kpi",
             "value": numeric[0]
         }
 
-    # Time series → Line
+    # Time series
     if "timestamp" in row or "date" in row:
-        return {
-            "type": "line",
-            "x": "timestamp" if "timestamp" in row else "date",
-            "y": numeric[0] if numeric else None
-        }
-
-    # Pie chart (percentage column)
-    for col in numeric:
-        if "percent" in col or "%" in col:
+        x = "timestamp" if "timestamp" in row else "date"
+        if numeric:
             return {
-                "type": "pie",
-                "labels": categorical[0] if categorical else None,
-                "values": col
+                "type": "line",
+                "x": x,
+                "y": numeric[0]
             }
 
-    # Radar (multiple metrics)
-    if len(categorical) >= 1 and len(numeric) >= 3:
+    # PIE detection (distribution)
+    if len(categorical) == 1 and len(numeric) == 1:
+
+        num_col = numeric[0]
+
+        name = num_col.lower()
+
+        # if column name suggests percent/share
+        if any(k in name for k in ["percent", "ratio", "share", "distribution"]):
+            return {
+                "type": "pie",
+                "labels": categorical[0],
+                "values": num_col
+            }
+
+        # if numbers sum roughly to 100
+        total = sum(
+            r[num_col] for r in data
+            if isinstance(r[num_col], (int, float))
+        )
+
+        if 95 <= total <= 105:
+            return {
+                "type": "pie",
+                "labels": categorical[0],
+                "values": num_col
+            }
+
+    # Radar
+    if len(data) == 1 and len(numeric) >= 3:
         return {
             "type": "radar",
-            "category": categorical[0],
             "metrics": numeric
         }
 
@@ -55,7 +74,7 @@ def detect_chart(data):
             "y": numeric
         }
 
-    # Bar
+    # Bar chart
     if len(categorical) == 1 and len(numeric) == 1:
         return {
             "type": "bar",

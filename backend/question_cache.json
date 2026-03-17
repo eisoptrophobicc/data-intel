@@ -194,5 +194,80 @@
         "denominator": "COUNT"
       }
     }
+  },
+  "average views in us": {
+    "sql": "SELECT AVG(views) AS avg_views FROM youtube_videos_staging WHERE region = 'US'",
+    "intent": {
+      "metrics": [
+        "views"
+      ],
+      "aggregation": "AVG",
+      "group_by": [],
+      "filters": [
+        {
+          "column": "region",
+          "op": "=",
+          "value": "US"
+        }
+      ],
+      "order_by": null,
+      "order": null,
+      "limit": null,
+      "calculation": null
+    }
+  },
+  "views by category": {
+    "sql": "SELECT category, SUM(views) AS sum_likes FROM youtube_videos_staging GROUP BY category",
+    "intent": {
+      "metrics": [
+        "views"
+      ],
+      "aggregation": "SUM",
+      "group_by": [
+        "category"
+      ],
+      "filters": [],
+      "order_by": null,
+      "order": null,
+      "limit": null,
+      "calculation": null
+    }
+  },
+  "show percentage of videos in each category": {
+    "sql": "SELECT category, COUNT(*) * 100.0 / SUM(COUNT(*)) OVER() AS percent FROM youtube_videos_staging GROUP BY category",
+    "intent": {
+      "metrics": [],
+      "aggregation": "COUNT",
+      "group_by": [
+        "category"
+      ],
+      "filters": [],
+      "order_by": null,
+      "order": null,
+      "limit": null,
+      "calculation": {
+        "type": "PERCENT_OF_TOTAL",
+        "metric": "video_id"
+      }
+    }
+  },
+  "compare average views, likes, and comments by category": {
+    "sql": "SELECT category, AVG(views) AS avg_views, AVG(likes) AS avg_likes, AVG(comments) AS avg_comments FROM youtube_videos_staging GROUP BY category",
+    "intent": {
+      "metrics": [
+        "views",
+        "likes",
+        "comments"
+      ],
+      "aggregation": "AVG",
+      "group_by": [
+        "category"
+      ],
+      "filters": [],
+      "order_by": null,
+      "order": null,
+      "limit": null,
+      "calculation": null
+    }
   }
 }

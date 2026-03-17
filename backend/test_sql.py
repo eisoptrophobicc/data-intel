@@ -1,6 +1,6 @@
 from run_query import run_query
 
-question = "Top languages with most engagement rate"
+question = "compare average views, likes, and comments by category"
 
 df = run_query(question)
 

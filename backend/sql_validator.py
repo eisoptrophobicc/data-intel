@@ -1,6 +1,5 @@
 from query_parser import load_schema
 
-
 def validate_intent(intent):
 
     if not isinstance(intent, dict):

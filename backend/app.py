@@ -6,13 +6,13 @@ sys.path.append(os.path.dirname(__file__))
 from fastapi import FastAPI
 from pydantic import BaseModel
 from run_query import run_query
+from adapter import adapt_result
 
 app = FastAPI()
 
 class QueryRequest(BaseModel):
     question: str
     mode: str = "new"
-
 
 @app.get("/")
 def home():
@@ -27,14 +27,4 @@ def query(req: QueryRequest):
     if result["status"] != "success":
         return result
 
-    response = {
-        "status": result.get("status"),
-        "question": req.question,
-        "intent": result.get("intent"),
-        "sql": result.get("sql"),
-        "data": result.get("data"),
-        "chart": result.get("chart"),
-        "insight": result.get("insight")
-    }
-
-    return response
+    return adapt_result(result, req.question)
