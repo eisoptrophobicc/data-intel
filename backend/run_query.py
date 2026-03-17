@@ -1,12 +1,13 @@
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from query_parser import parse_question
 from sql_validator import validate_intent
 from sql_generator import generate_sql
 from query_executor import execute_query
 from template_engine import find_template, store_template
 from chart_selector import detect_chart
+from insight_engine import generate_insight
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 CACHE_FILE = BASE_DIR / "backend" / "question_cache.json"
@@ -32,7 +33,7 @@ def store_bad_question(question, reason, intent=None):
     cache[question] = {
         "intent": intent,
         "reason": reason,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
     with open(BAD_CACHE, "w") as f:
@@ -98,15 +99,22 @@ def run_query(question):
             intent = cache_entry["intent"]
 
             df = execute_query(sql)
-
+            
             if df.empty:
                 return {"status": "no_data"}
+            
+            data = df.to_dict(orient="records")
+
+            chart = detect_chart(data)
+
+            insight = generate_insight(intent, data)
 
             return {
                 "status": "success",
-                "data": df.to_dict(orient="records"),
+                "data": data,
                 "sql": sql,
-                "intent": intent
+                "chart": chart,
+                "insight": insight
             }
 
         except Exception as e:
@@ -167,7 +175,6 @@ def run_query(question):
         if df.empty:
             return {"status": "no_data"}
 
-
         # STORE SUCCESS CACHE
         store_question_cache(question, sql, intent)
         
@@ -175,11 +182,14 @@ def run_query(question):
 
         chart = detect_chart(data)
 
+        insight = generate_insight(intent, data)
+
         return {
             "status": "success",
             "data": data,
             "sql": sql,
-            "chart": chart
+            "chart": chart,
+            "insight": insight
         }
 
     except ValueError as e:
