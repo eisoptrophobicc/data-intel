@@ -1,14 +1,106 @@
 {
-  "no. of videos in 2024": "SELECT COUNT(*) AS count FROM youtube_videos_staging WHERE timestamp >= '2024-01-01T00:00:00Z' AND timestamp < '2025-01-01T00:00:00Z'",
-  "average views in united states": "SELECT AVG(views) AS avg_views FROM youtube_videos_staging WHERE region = 'US'",
-  "which countries are watching our videos the most?": "SELECT region, SUM(views) AS sum_views FROM youtube_videos_staging GROUP BY region ORDER BY SUM(views) DESC",
-  "which region has the most views?": "SELECT region, SUM(views) AS sum_views FROM youtube_videos_staging GROUP BY region ORDER BY SUM(views) DESC",
-  "views v/s sentiments": "SELECT AVG(views) AS avg_views, AVG(sentiment_score) AS avg_sentiment_score FROM youtube_videos_staging",
-  "video per category": "SELECT category, COUNT(*) AS count FROM youtube_videos_staging GROUP BY category",
-  "distribution of videos across categories": "SELECT category, COUNT(*) AS count FROM youtube_videos_staging GROUP BY category",
-  "top 5 categories by views": "SELECT category, SUM(views) AS sum_views FROM youtube_videos_staging GROUP BY category ORDER BY SUM(views) DESC LIMIT 5",
-  "show percetage of videos in each category": "SELECT category, SUM(views) * 100.0 / SUM(SUM(views)) OVER() AS percent FROM youtube_videos_staging GROUP BY category",
-  "which category should we priortize if we want to gain most views?": "SELECT category, SUM(views) AS sum_views FROM youtube_videos_staging GROUP BY category ORDER BY SUM(views) DESC",
-  "likes per view": "SELECT SUM(likes) * 1.0 / NULLIF(SUM(views),0) AS ratio FROM youtube_videos_staging",
-  "average views in india for educational videos": "SELECT AVG(views) AS avg_views FROM youtube_videos_staging WHERE region = 'IN' AND category = 'Education'"
+  "no. of videos in 2024": {
+    "sql": "SELECT COUNT(*) AS count FROM youtube_videos_staging WHERE timestamp BETWEEN '2024-01-01 00:00:00' AND '2024-12-31 23:59:59'",
+    "intent": {
+      "metrics": [],
+      "aggregation": "COUNT",
+      "group_by": [],
+      "filters": [
+        {
+          "column": "timestamp",
+          "op": "BETWEEN",
+          "value": [
+            "2024-01-01 00:00:00",
+            "2024-12-31 23:59:59"
+          ]
+        }
+      ],
+      "order_by": null,
+      "order": null,
+      "limit": null,
+      "calculation": null
+    }
+  },
+  "average views in united states": {
+    "sql": "SELECT AVG(views) AS avg_views FROM youtube_videos_staging WHERE region = 'US'",
+    "intent": {
+      "metrics": [
+        "views"
+      ],
+      "aggregation": "AVG",
+      "group_by": [],
+      "filters": [
+        {
+          "column": "region",
+          "op": "=",
+          "value": "US"
+        }
+      ],
+      "order_by": null,
+      "order": null,
+      "limit": null,
+      "calculation": null
+    }
+  },
+  "which countries are watching our videos the most?": {
+    "sql": "SELECT region, SUM(views) AS sum_views FROM youtube_videos_staging GROUP BY region ORDER BY SUM(views) DESC",
+    "intent": {
+      "metrics": [
+        "views"
+      ],
+      "aggregation": "SUM",
+      "group_by": [
+        "region"
+      ],
+      "filters": [],
+      "order_by": "views",
+      "order": "DESC",
+      "limit": null,
+      "calculation": null
+    }
+  },
+  "show percetage of videos in each category": {
+    "sql": "SELECT category, COUNT(*) * 100.0 / SUM(COUNT(*)) OVER() AS percent FROM youtube_videos_staging GROUP BY category",
+    "intent": {
+      "metrics": [],
+      "aggregation": "COUNT",
+      "group_by": [
+        "category"
+      ],
+      "filters": [],
+      "order_by": null,
+      "order": null,
+      "limit": null,
+      "calculation": {
+        "type": "PERCENT_OF_TOTAL",
+        "metric": "video_id"
+      }
+    }
+  },
+  "average views in india for educational videos": {
+    "sql": "SELECT AVG(views) AS avg_views FROM youtube_videos_staging WHERE region = 'IN' AND category = 'Education'",
+    "intent": {
+      "metrics": [
+        "views"
+      ],
+      "aggregation": "AVG",
+      "group_by": [],
+      "filters": [
+        {
+          "column": "region",
+          "op": "=",
+          "value": "IN"
+        },
+        {
+          "column": "category",
+          "op": "=",
+          "value": "Education"
+        }
+      ],
+      "order_by": null,
+      "order": null,
+      "limit": null,
+      "calculation": null
+    }
+  }
 }

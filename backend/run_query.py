@@ -50,11 +50,14 @@ def load_question_cache():
         return json.load(f)
 
 
-def store_question_cache(question, sql):
+def store_question_cache(question, sql, intent=None):
 
     cache = load_question_cache()
 
-    cache[question] = sql
+    cache[question] = {
+        "sql": sql,
+        "intent": intent
+    }
 
     with open(CACHE_FILE, "w") as f:
         json.dump(cache, f, indent=2)
@@ -88,7 +91,12 @@ def run_query(question):
 
         try:
 
-            df = execute_query(cache[question])
+            cache_entry = cache[question]
+
+            sql = cache_entry["sql"]
+            intent = cache_entry["intent"]
+
+            df = execute_query(sql)
 
             if df.empty:
                 return {"status": "no_data"}
@@ -96,7 +104,8 @@ def run_query(question):
             return {
                 "status": "success",
                 "data": df.to_dict(orient="records"),
-                "sql": cache[question]
+                "sql": sql,
+                "intent": intent
             }
 
         except Exception as e:
@@ -159,7 +168,7 @@ def run_query(question):
 
 
         # STORE SUCCESS CACHE
-        store_question_cache(question, sql)
+        store_question_cache(question, sql, intent)
 
         return {
             "status": "success",

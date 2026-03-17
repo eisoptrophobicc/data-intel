@@ -1,6 +1,6 @@
 from run_query import run_query
 
-question = "Average views in India for Educational Videos"
+question = "average views in india for educational videos"
 
 df = run_query(question)
 
