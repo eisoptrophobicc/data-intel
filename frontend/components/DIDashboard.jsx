@@ -1550,11 +1550,42 @@ function AuthScreen({onAuth}){
   const[error,setError]=useState(null);
   const[focusField,setFocusField]=useState(null);
 
-  const submit=async()=>{
-    if(!email.trim()||!pw.trim())return;
-    setLoading(true);setError(null);
-    await new Promise(r=>setTimeout(r,900));
-    setError("Backend not connected. Click 'Continue as guest' to explore the app.");
+  const submit = async () => {
+    if(!email.trim() || !pw.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const endpoint =
+       tab === "login"
+         ? "/api/login"
+         : "/api/register";
+
+      const body = {
+        email: email,
+        password: pw
+      };
+
+      if(tab === "signup"){
+        body.name = name;
+      }
+      const res = await fetch(endpoint,{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify(body)
+      });
+      const data = await res.json();
+      if(!res.ok){
+        throw new Error(data.error || "Authentication failed");
+      }
+      onAuth({
+        email: email,
+        name: name || email
+      });
+    } catch(e){
+      setError(e.message);
+    }
     setLoading(false);
   };
 
